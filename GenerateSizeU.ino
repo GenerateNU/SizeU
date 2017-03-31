@@ -19,7 +19,7 @@ Header File Info
 #define RED_LED 6
 #define INTERNAL_LED_PIN 13
 #define BUTTON_PIN 4
-
+#define ROTARY_SWITCH A0
 
 Adafruit_BLE_UART BTLEserial = Adafruit_BLE_UART(ADAFRUITBLE_REQ, ADAFRUITBLE_RDY, ADAFRUITBLE_RST);
 /**************************************************************************/
@@ -31,12 +31,15 @@ Adafruit_BLE_UART BTLEserial = Adafruit_BLE_UART(ADAFRUITBLE_REQ, ADAFRUITBLE_RD
 // variables will change.
 int buttonState = 0;
 int lastButtonState = 0;
+int rotarySwitchState = 0;
 
 void setup(void)
 { 
   configureLights();
   pinMode(BUTTON_PIN, INPUT);
   pinMode(INTERNAL_LED_PIN, OUTPUT);
+  pinMode(ROTARY_SWITCH, INPUT);
+  digitalWrite(ROTARY_SWITCH, HIGH);
   
   Serial.begin(9600);
   while(!Serial); // Leonardo/Micro should wait for serial init
@@ -56,11 +59,6 @@ aci_evt_opcode_t laststatus = ACI_EVT_DISCONNECTED;
 
 void loop()
 { 
-  while(1){
-    successfulSend();
-  }
-
-  
   // Tell the nRF8001 to do whatever it should be working on.
   BTLEserial.pollACI();
   
@@ -84,20 +82,23 @@ void loop()
 
   if (status == ACI_EVT_CONNECTED) {
     bluetoothConnected();
-    
+
+    // ALL OF THIS IS NOT NECESSARY AS WE ARE ONLY SENDING DATA AND NOT LISTENING FOR DATA
     // Lets see if there's any data for us!
-    if (BTLEserial.available()) {
-      Serial.print("* "); Serial.print(BTLEserial.available()); Serial.println(F(" bytes available from BTLE"));
-    }
+    // if (BTLEserial.available()) {
+    //  Serial.print("* "); Serial.print(BTLEserial.available()); Serial.println(F(" bytes available from BTLE"));
+    // }
     // OK while we still have something to read, get a character and print it out
-    while (BTLEserial.available()) {
-      char c = BTLEserial.read();
-      Serial.print(c);
-    }
+    // while (BTLEserial.available()) {
+    //  char c = BTLEserial.read();
+    //  Serial.print(c);
+    // }
 
     // We need to convert the line to bytes
+    rotarySwitchState = getRotaryState();
+     
     buttonState = digitalRead(BUTTON_PIN);
-    String s = "Neck: 16 Chest: 39 Sleeve: 33.5 Waist: 33 Hip: 39 Inseam: 32";
+    String s = determineMeasurementSize(rotarySwitchState);
     uint8_t sendbuffer[70];
     s.getBytes(sendbuffer, 70);
     char sendbuffersize = min(70, s.length());
@@ -200,8 +201,58 @@ void failedSend(void)
   delay(200);
   digitalWrite(RED_LED, LOW);
 }
+/*********************************************************************
+Rotary Switch Functions
+*********************************************************************/
+int getRotaryState(void)
+{
+  int mode=0;
+  int R= analogRead(A0);
+  Serial.println(R);
+  for(int i=0;i<140;i+=20){
+    if((i-20)<R&&R<i){
+      mode=i/18;
+      delay(100);
+    }
+  }  
+  delay(100);
+  return mode;
+}
 
+String determineMeasurementSize(int rotaryMode)
+{
+  String currentState;
+  if(rotaryMode == 1)
+  {
+    currentState = "Neck: ";
+  }
+  else if(rotaryMode == 2)
+  {
+    currentState = "Chest: ";
+  }
+  else if(rotaryMode == 3)
+  {
+    currentState = "Sleeve: ";
+  }
+  else if(rotaryMode == 4)
+  {
+    currentState = "Waist: ";
+  }
+  else if(rotaryMode == 5)
+  {
+    currentState = "Hip: ";
+  }
+  else if(rotaryMode == 6)
+  {
+    currentState = "Inseam: ";
+  }
+  else
+  {
+    currentState = "Error Unknown State!";
+  }
 
+ return currentState;
+}
 
 
 
