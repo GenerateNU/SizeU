@@ -20,6 +20,8 @@ Header File Info
 #define INTERNAL_LED_PIN 13
 #define BUTTON_PIN 4
 #define ROTARY_SWITCH A0
+#define ROTARY_ENCODER_1 A4
+#define ROTARY_ENCODER_2 A5
 
 Adafruit_BLE_UART BTLEserial = Adafruit_BLE_UART(ADAFRUITBLE_REQ, ADAFRUITBLE_RDY, ADAFRUITBLE_RST);
 /**************************************************************************/
@@ -33,9 +35,17 @@ int buttonState = 0;
 int lastButtonState = 0;
 int rotarySwitchState = 0;
 
+// JT
+int count;
+int Rotations;
+int resolutionx2=15;      //using 2x the resolution in degrees to keep data in int type
+int Angle;
+float inchpoly,inchpwr,inchlin,inchround;
+
 void setup(void)
 { 
   configureLights();
+  configureEncoder();
   pinMode(BUTTON_PIN, INPUT);
   pinMode(INTERNAL_LED_PIN, OUTPUT);
   pinMode(ROTARY_SWITCH, INPUT);
@@ -59,6 +69,12 @@ aci_evt_opcode_t laststatus = ACI_EVT_DISCONNECTED;
 
 void loop()
 { 
+
+  runEncoder();
+}
+
+void useless(void)
+{
   // Tell the nRF8001 to do whatever it should be working on.
   BTLEserial.pollACI();
   
@@ -253,6 +269,61 @@ String determineMeasurementSize(int rotaryMode)
 
  return currentState;
 }
+
+/*********************************************************************
+Rotary Encoder Functions
+*********************************************************************/
+void configureEncoder(void){
+  pinMode(ROTARY_ENCODER_1,INPUT);
+  pinMode(ROTARY_ENCODER_2,INPUT);
+  digitalWrite(ROTARY_ENCODER_1,HIGH);
+  digitalWrite(ROTARY_ENCODER_2,HIGH);
+}
+
+void ReadEncoder(int &rotate, int& buttonPress){    //register encoder state
+  rotate=2*digitalRead(ROTARY_ENCODER_1)+digitalRead(ROTARY_ENCODER_2);
+  //buttonPress=digitalRead(pinButton);
+}
+
+void runEncoder(void)
+{
+  int Position, Press;
+  int Direction=0;
+  //ReadEncoder(Position, Press);
+  int rotate=2*digitalRead(ROTARY_ENCODER_1)+digitalRead(ROTARY_ENCODER_2);
+  while (!Serial.available()){
+    int Position2, Press2;
+    do{
+      //ReadEncoder(Position2, Press2);
+      rotate=2*digitalRead(ROTARY_ENCODER_1)+digitalRead(ROTARY_ENCODER_2);
+    } while((Position2==Position)&&(Press2==Press));
+    if(Position2!=Position){
+      int Direction=((Position == 0) && (Position2 == 1)) ||
+        ((Position == 1) && (Position2 == 3)) ||
+        ((Position == 3) && (Position2 == 2)) ||
+        ((Position == 2) && (Position2 == 0));         
+      if(Direction==1){
+        count++;
+      }      
+     else{
+        count-- ;
+      }
+      inchpoly=-0.00002*pow(count,2)+.1571*count-.0947;
+      inchpwr=.1525*pow(count,1.0007);
+      inchlin=.1516*count+.1965;
+      Serial.println(inchpoly);
+    if (Press2 != Press)
+    {
+      Serial.println(Press ? "Press" : "Release - Reset");    //reset the counter when button is pressed
+      count=0;
+    }
+    
+    Position = Position2;
+    Press = Press2;
+    }
+  }
+}
+  
 
 
 
